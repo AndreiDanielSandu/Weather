@@ -7,14 +7,14 @@ import java.util.Objects;
 
 public class CachedForecaster implements WeatherService {
     private final WeatherService delegate;
-    private final Map<CacheKey, Forecast> cacheMap;
+    private final Map<CacheKey, CachedValue> cacheMap;
 
     public CachedForecaster(WeatherService delegate, final int maxSize) {
         this.delegate = delegate;
-        // LinkedHashMap with 'removeEldestEntry' handles the size limit for us!
-        this.cacheMap = new LinkedHashMap<CacheKey, Forecast>(maxSize, 0.75f, true) {
+
+        this.cacheMap = new LinkedHashMap<CacheKey, CachedValue>(maxSize, 0.75f, true) {
             @Override
-            protected boolean removeEldestEntry(Map.Entry<CacheKey, Forecast> eldest) {
+            protected boolean removeEldestEntry(Map.Entry<CacheKey, CachedValue> eldest) {
                 return size() > maxSize;
             }
         };
@@ -23,13 +23,52 @@ public class CachedForecaster implements WeatherService {
     @Override
     public Forecast forecastFor(Region region, Day day) {
         CacheKey key = new CacheKey(region, day);
-        if (cacheMap.containsKey(key)) {
-            return cacheMap.get(key);
+        CachedValue cached = cacheMap.get(key);
+
+        if (cached != null && !cached.isExpired()) {
+            return cached.forecast;
         }
-        Forecast forecast = delegate.forecastFor(region, day);
-        cacheMap.put(key, forecast);
-        return forecast;
+
+        Forecast freshForecast = delegate.forecastFor(region, day);
+        cacheMap.put(key, new CachedValue(freshForecast));
+
+        return freshForecast;
     }
 
-    private static record CacheKey(Region region, Day day) {}
+    private static class CachedValue {
+        public final Forecast forecast;
+        public final long timestamp;
+
+        public CachedValue(Forecast forecast) {
+            this.forecast = forecast;
+            this.timestamp = System.currentTimeMillis();
+        }
+
+        public boolean isExpired() {
+            return (System.currentTimeMillis() - timestamp) > 3600000;
+        }
+    }
+
+    private static class CacheKey {
+        private final Region region;
+        private final Day day;
+
+        public CacheKey(Region region, Day day) {
+            this.region = region;
+            this.day = day;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            CacheKey cacheKey = (CacheKey) o;
+            return region == cacheKey.region && day == cacheKey.day;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(region, day);
+        }
+    }
 }
