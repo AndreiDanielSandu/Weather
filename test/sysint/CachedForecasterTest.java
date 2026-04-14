@@ -21,4 +21,13 @@ public class CachedForecasterTest {
 
         cache.forecastFor(Region.LONDON, Day.MONDAY);
     }
+    @Test
+    public void doesNotCallRealServiceTwiceForSameRequest() {
+        context.checking(new Expectations() {{
+            oneOf(realService).forecastFor(Region.LONDON, Day.MONDAY);
+        }});
+
+        cache.forecastFor(Region.LONDON, Day.MONDAY);
+        cache.forecastFor(Region.LONDON, Day.MONDAY);
+    }
 }
