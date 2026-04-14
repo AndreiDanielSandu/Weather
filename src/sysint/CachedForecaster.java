@@ -8,10 +8,11 @@ import java.util.Objects;
 public class CachedForecaster implements WeatherService {
     private final WeatherService delegate;
     private final Map<CacheKey, CachedValue> cacheMap;
+    private final Clock clock;
 
-    public CachedForecaster(WeatherService delegate, final int maxSize) {
+    public CachedForecaster(WeatherService delegate, Clock clock, final int maxSize) {
         this.delegate = delegate;
-
+        this.clock = clock;
         this.cacheMap = new LinkedHashMap<CacheKey, CachedValue>(maxSize, 0.75f, true) {
             @Override
             protected boolean removeEldestEntry(Map.Entry<CacheKey, CachedValue> eldest) {
@@ -25,12 +26,12 @@ public class CachedForecaster implements WeatherService {
         CacheKey key = new CacheKey(region, day);
         CachedValue cached = cacheMap.get(key);
 
-        if (cached != null && !cached.isExpired()) {
+        if (cached != null && (clock.currentTimeMillis() - cached.timestamp) < 3600000) {
             return cached.forecast;
         }
 
         Forecast freshForecast = delegate.forecastFor(region, day);
-        cacheMap.put(key, new CachedValue(freshForecast));
+        cacheMap.put(key, new CachedValue(freshForecast, clock.currentTimeMillis()));
 
         return freshForecast;
     }
@@ -39,13 +40,9 @@ public class CachedForecaster implements WeatherService {
         public final Forecast forecast;
         public final long timestamp;
 
-        public CachedValue(Forecast forecast) {
+        public CachedValue(Forecast forecast, long timestamp) {
             this.forecast = forecast;
-            this.timestamp = System.currentTimeMillis();
-        }
-
-        public boolean isExpired() {
-            return (System.currentTimeMillis() - timestamp) > 3600000;
+            this.timestamp = timestamp;
         }
     }
 
