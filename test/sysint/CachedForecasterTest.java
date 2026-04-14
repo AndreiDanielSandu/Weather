@@ -30,4 +30,14 @@ public class CachedForecasterTest {
         cache.forecastFor(Region.LONDON, Day.MONDAY);
         cache.forecastFor(Region.LONDON, Day.MONDAY);
     }
+    @Test
+    public void refreshesCacheAfterOneHour() throws InterruptedException {
+        context.checking(new Expectations() {{
+            exactly(2).of(realService).forecastFor(Region.LONDON, Day.MONDAY);
+        }});
+
+        cache.forecastFor(Region.LONDON, Day.MONDAY); // 1. Initial fetch (stored)
+
+        cache.forecastFor(Region.LONDON, Day.MONDAY);
+    }
 }
